@@ -1,23 +1,31 @@
-Go-Roomba
+go-roomba
 ===
-A go library for interacting with iRobot Roomba or Create robots following the Open Interface (OI) specification.
+A Go library for interacting with iRobot Create 2 robots according to the [iRobot Open Interface (OI) specification](https://www.irobotweb.com/~/media/MainSite/PDFs/About/STEM/Create/iRobot_Roomba_600_Open_Interface_Spec.pdf).
 
-[![Build Status](https://travis-ci.org/xa4a/go-roomba.svg?branch=master)](https://travis-ci.org/xa4a/go-roomba)
-[![Coverage Status](https://img.shields.io/coveralls/xa4a/go-roomba.svg)](https://coveralls.io/r/xa4a/go-roomba?branch=master)
 
-Details
+This library is based on the [github.com/xa4a/go-roomba](https://github.com/xa4a/go-roomba) project which has not been updated in several years, seemingly abandoned, yet surprisingly still functional. A large portion of that library has been removed so that only essential functionality is implemented.
+
+
+That project was "remotely inspired" by the `pyrobot` library by damonkohler@gmail.com (Damon Kohler).
+
+
+I've removed the simulator and Go test harness capabilities of the previous project for the sake of simplicity, as it wasn't immediately apparent how to use them or how complete their test coverage actually was. Hopefully that effort can be resumed in the future, or maybe not :)
+
+
+Serial support was previously provided by [github.com/tarm/goserial](https://github.com/tarm/goserial), which is now deprecated. Serial support is now implemented with [github.com/tarm/serial](https://github.com/tarm/serial).
+
+
+Dependencies
 ---
-The code of the library is remotely inspired by `pyrobot` library by damonkohler@gmail.com (Damon Kohler)
+- Serial streams - [github.com/tarm/serial](https://github.com/tarm/serial)
 
-I'm still not sure on how to package go libraries, but 
 
-    go get github.com/xa4a/go-roomba/go-roomba-test
-    $GOPATH/bin/go-roomba-test  # -port=/dev/roomba_serial_port
+License
+---
+This software is licensed to *you* under the terms of the MIT license
 
-Should output:
 
-    2012/10/29 16:41:40 Failed to open serial port: /dev/cu.usbserial-FTTL3AW0
-    2012/10/29 16:41:40 Making roomba failed
-    exit status 1
-   
-And if you have Roomba connected to the specified port (`/dev/cu.usbserial-FTTL3AW0` above) it may move forward a bit.
+Usage
+===
+- TBD!
+
