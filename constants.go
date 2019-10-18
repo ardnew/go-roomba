@@ -1,5 +1,7 @@
 package oibot
 
+import "time"
+
 // =====================================================================================================================
 type OpCode byte
 
@@ -172,7 +174,7 @@ var (
 	spcOpenInterfaceMode     = &SensorPacket{id: 35, size: 1}
 	spcSongNumber            = &SensorPacket{id: 36, size: 1}
 	spcSongPlaying           = &SensorPacket{id: 37, size: 1}
-	spcOiStreamNumPackets    = &SensorPacket{id: 38, size: 1}
+	spcOIStreamNumPackets    = &SensorPacket{id: 38, size: 1}
 	spcVelocity              = &SensorPacket{id: 39, size: 2}
 	spcRadius                = &SensorPacket{id: 40, size: 2}
 	spcVelocityRight         = &SensorPacket{id: 41, size: 2}
@@ -224,9 +226,9 @@ var (
 	sgpDock      = &SensorGroup{id: 2, size: 6, member: []*SensorPacket{spcIROpCode, spcButtons, spcDistance, spcAngle}}
 	sgpBattery   = &SensorGroup{id: 3, size: 10, member: []*SensorPacket{spcChargingState, spcVoltage, spcCurrent, spcTemperature, spcBatteryCharge, spcBatteryCapacity}}
 	sgpSignal    = &SensorGroup{id: 4, size: 14, member: []*SensorPacket{spcWallSignal, spcCliffLeftSignal, spcCliffFrontLeftSignal, spcCliffFrontRightSignal, spcCliffRightSignal, spcUnused2, spcUnused3, spcChargerAvailable}}
-	sgpModeData  = &SensorGroup{id: 5, size: 12, member: []*SensorPacket{spcOpenInterfaceMode, spcSongNumber, spcSongPlaying, spcOiStreamNumPackets, spcVelocity, spcRadius, spcVelocityRight, spcVelocityLeft}}
-	sgpSensor    = &SensorGroup{id: 6, size: 52, member: []*SensorPacket{spcBumpsWheeldrops, spcWall, spcCliffLeft, spcCliffFrontLeft, spcCliffFrontRight, spcCliffRight, spcVirtualWall, spcOvercurrents, spcDirtDetect, spcUnused1, spcIROpCode, spcButtons, spcDistance, spcAngle, spcChargingState, spcVoltage, spcCurrent, spcTemperature, spcBatteryCharge, spcBatteryCapacity, spcWallSignal, spcCliffLeftSignal, spcCliffFrontLeftSignal, spcCliffFrontRightSignal, spcCliffRightSignal, spcUnused2, spcUnused3, spcChargerAvailable, spcOpenInterfaceMode, spcSongNumber, spcSongPlaying, spcOiStreamNumPackets, spcVelocity, spcRadius, spcVelocityRight, spcVelocityLeft}}
-	sgpAll       = &SensorGroup{id: 100, size: 80, member: []*SensorPacket{spcBumpsWheeldrops, spcWall, spcCliffLeft, spcCliffFrontLeft, spcCliffFrontRight, spcCliffRight, spcVirtualWall, spcOvercurrents, spcDirtDetect, spcUnused1, spcIROpCode, spcButtons, spcDistance, spcAngle, spcChargingState, spcVoltage, spcCurrent, spcTemperature, spcBatteryCharge, spcBatteryCapacity, spcWallSignal, spcCliffLeftSignal, spcCliffFrontLeftSignal, spcCliffFrontRightSignal, spcCliffRightSignal, spcUnused2, spcUnused3, spcChargerAvailable, spcOpenInterfaceMode, spcSongNumber, spcSongPlaying, spcOiStreamNumPackets, spcVelocity, spcRadius, spcVelocityRight, spcVelocityLeft, spcEncoderCountsLeft, spcEncoderCountsRight, spcLightBumper, spcLightBumpLeft, spcLightBumpFrontLeft, spcLightBumpCenterLeft, spcLightBumpCenterRight, spcLightBumpFrontRight, spcLightBumpRight, spcIROpCodeLeft, spcIROpCodeRight, spcLeftMotorCurrent, spcRightMotorCurrent, spcMainBrushCurrent, spcSideBrushCurrent, spcStasis}}
+	sgpModeData  = &SensorGroup{id: 5, size: 12, member: []*SensorPacket{spcOpenInterfaceMode, spcSongNumber, spcSongPlaying, spcOIStreamNumPackets, spcVelocity, spcRadius, spcVelocityRight, spcVelocityLeft}}
+	sgpSensor    = &SensorGroup{id: 6, size: 52, member: []*SensorPacket{spcBumpsWheeldrops, spcWall, spcCliffLeft, spcCliffFrontLeft, spcCliffFrontRight, spcCliffRight, spcVirtualWall, spcOvercurrents, spcDirtDetect, spcUnused1, spcIROpCode, spcButtons, spcDistance, spcAngle, spcChargingState, spcVoltage, spcCurrent, spcTemperature, spcBatteryCharge, spcBatteryCapacity, spcWallSignal, spcCliffLeftSignal, spcCliffFrontLeftSignal, spcCliffFrontRightSignal, spcCliffRightSignal, spcUnused2, spcUnused3, spcChargerAvailable, spcOpenInterfaceMode, spcSongNumber, spcSongPlaying, spcOIStreamNumPackets, spcVelocity, spcRadius, spcVelocityRight, spcVelocityLeft}}
+	sgpAll       = &SensorGroup{id: 100, size: 80, member: []*SensorPacket{spcBumpsWheeldrops, spcWall, spcCliffLeft, spcCliffFrontLeft, spcCliffFrontRight, spcCliffRight, spcVirtualWall, spcOvercurrents, spcDirtDetect, spcUnused1, spcIROpCode, spcButtons, spcDistance, spcAngle, spcChargingState, spcVoltage, spcCurrent, spcTemperature, spcBatteryCharge, spcBatteryCapacity, spcWallSignal, spcCliffLeftSignal, spcCliffFrontLeftSignal, spcCliffFrontRightSignal, spcCliffRightSignal, spcUnused2, spcUnused3, spcChargerAvailable, spcOpenInterfaceMode, spcSongNumber, spcSongPlaying, spcOIStreamNumPackets, spcVelocity, spcRadius, spcVelocityRight, spcVelocityLeft, spcEncoderCountsLeft, spcEncoderCountsRight, spcLightBumper, spcLightBumpLeft, spcLightBumpFrontLeft, spcLightBumpCenterLeft, spcLightBumpCenterRight, spcLightBumpFrontRight, spcLightBumpRight, spcIROpCodeLeft, spcIROpCodeRight, spcLeftMotorCurrent, spcRightMotorCurrent, spcMainBrushCurrent, spcSideBrushCurrent, spcStasis}}
 	sgpDrive     = &SensorGroup{id: 101, size: 28, member: []*SensorPacket{spcEncoderCountsLeft, spcEncoderCountsRight, spcLightBumper, spcLightBumpLeft, spcLightBumpFrontLeft, spcLightBumpCenterLeft, spcLightBumpCenterRight, spcLightBumpFrontRight, spcLightBumpRight, spcIROpCodeLeft, spcIROpCodeRight, spcLeftMotorCurrent, spcRightMotorCurrent, spcMainBrushCurrent, spcSideBrushCurrent, spcStasis}}
 	sgpProximity = &SensorGroup{id: 106, size: 12, member: []*SensorPacket{spcLightBumpLeft, spcLightBumpFrontLeft, spcLightBumpCenterLeft, spcLightBumpCenterRight, spcLightBumpFrontRight, spcLightBumpRight}}
 	sgpActuator  = &SensorGroup{id: 107, size: 9, member: []*SensorPacket{spcLeftMotorCurrent, spcRightMotorCurrent, spcMainBrushCurrent, spcSideBrushCurrent, spcStasis}}
@@ -268,7 +270,11 @@ var (
 )
 
 const (
-	DefaultBaudRateBPS int = 115200
+	DefaultBaudRateBPS    int           = 115200
+	SerialTransferDelayMS time.Duration = 50 * time.Millisecond
+	SensorUpdateDelayMS   time.Duration = 15 * time.Millisecond // from OI spec
+	DefaultReadTimeoutMS  time.Duration = 500 * time.Millisecond
+	NeverReadTimeoutMS    time.Duration = 0
 )
 
 // =====================================================================================================================
@@ -287,8 +293,19 @@ const (
 type OpenInterfaceMode byte
 
 const (
-	oimOff     OpenInterfaceMode = 0
-	oimPassive OpenInterfaceMode = 1
-	oimSafe    OpenInterfaceMode = 2
-	oimFull    OpenInterfaceMode = 3
+	OIMOff     OpenInterfaceMode = 0
+	OIMPassive OpenInterfaceMode = 1
+	OIMSafe    OpenInterfaceMode = 2
+	OIMFull    OpenInterfaceMode = 3
 )
+
+var (
+	oiModeStr = [...]string{"OFF", "PASV", "SAFE", "FULL"}
+)
+
+func OIModeStr(mode OpenInterfaceMode) (string, bool) {
+	if mode >= OIMOff && mode <= OIMFull {
+		return oiModeStr[mode], true
+	}
+	return "", false
+}
