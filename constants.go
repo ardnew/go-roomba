@@ -271,10 +271,14 @@ var (
 
 const (
 	DefaultBaudRateBPS    int           = 115200
+<<<<<<< HEAD
 	SerialTransferDelayMS time.Duration = 50 * time.Millisecond
 	SensorUpdateDelayMS   time.Duration = 15 * time.Millisecond // from OI spec
 	DefaultReadTimeoutMS  time.Duration = 500 * time.Millisecond
 	NeverReadTimeoutMS    time.Duration = 0
+=======
+	SerialTransferDelayMS time.Duration = 200 * time.Millisecond
+>>>>>>> fb2b0842ea2bd4a9ee31f55efc4ea14b66aae207
 )
 
 // =====================================================================================================================
