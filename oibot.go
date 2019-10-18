@@ -4,144 +4,280 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/tarm/serial"
 )
 
-type Roomba struct {
-	port *serial.Port
-	path string
-	baud int
+type OIBot struct {
+	port     *serial.Port
+	infoLog  *log.Logger
+	errorLog *log.Logger
+	path     string
+	baud     int
+	timeout  time.Duration
 }
 
-func MakeRoomba(path string, baud int) (*Roomba, error) {
-	var r *Roomba
+func MakeOIBot(infoLog *log.Logger, errorLog *log.Logger, path string, baud int, rtime time.Duration) *OIBot {
+	var o *OIBot
 	if _, ok := codeForBaudRate[baud]; !ok {
-		return nil, fmt.Errorf("oibot.MakeRoomba(): invalid baud rate: %d", baud)
+		errorLog.Panic(fmt.Errorf("invalid baud rate: %d", baud))
 	}
-	if port, err := serial.OpenPort(&serial.Config{Name: path, Baud: baud}); nil != err {
-		return nil, fmt.Errorf("oibot.MakeRoomba(): serial.OpenPort(%s, %d) failed: %s", path, baud, err)
+	config := &serial.Config{Name: path, Baud: baud}
+	if rtime > NeverReadTimeoutMS {
+		config.ReadTimeout = rtime
+	}
+	if port, err := serial.OpenPort(config); nil != err {
+		errorLog.Panic(fmt.Errorf("failed to open serial port: %s (%d): %s", path, baud, err))
 	} else {
-		r = &Roomba{port: port, path: path, baud: baud}
+		o = &OIBot{port: port, infoLog: infoLog, errorLog: errorLog, path: path, baud: baud, timeout: rtime}
+		// initialize the OI to a state that will allow battery charging via dock
+		o.Safe()
+		o.Baud(baud)
 	}
-	return r, nil
+	return o
 }
 
-func (r *Roomba) Pack(data ...interface{}) ([]byte, error) {
+func (o *OIBot) Pack(data ...interface{}) []byte {
 	buf := new(bytes.Buffer)
 	for _, bin := range data {
 		if err := binary.Write(buf, binary.BigEndian, bin); nil != err {
-			return nil, fmt.Errorf("oibot.pack(): binary.Write() failed: ", err)
+			o.errorLog.Panic(fmt.Errorf("failed to pack binary data: ", err))
 		}
 	}
-	return buf.Bytes(), nil
+	return buf.Bytes()
 }
 
-func (r *Roomba) WriteCode(code OpCode) error {
-	if n, err := r.port.Write([]byte{byte(code)}); n != 1 || nil != err {
-		return fmt.Errorf("(*Roomba).WriteCode(): port.Write(%d) failed: %s", code, err)
+func (o *OIBot) WriteCode(code OpCode) {
+	if n, err := o.port.Write([]byte{byte(code)}); n != 1 || nil != err {
+		o.errorLog.Panic(fmt.Errorf("failed to write opcode (%d) to serial port: %s", code, err))
 	}
-	return nil
+	time.Sleep(SerialTransferDelayMS)
 }
 
-func (r *Roomba) Write(code OpCode, buf ...interface{}) error {
-	var (
-		bin []byte
-		err error
-	)
-	if err = r.WriteCode(code); nil != err {
-		return err
-	}
-	if bin, err = r.Pack(buf...); nil != err {
-		return err
-	}
-	if n, err := r.port.Write(bin); n != len(bin) || nil != err {
-		return fmt.Errorf("(*Roomba).Write(): port.Write(<[DATA]>) failed: %s", err)
-	}
-	return nil
-}
-
-func (r *Roomba) Read(buf []byte) (n int, err error) {
-	return r.port.Read(buf)
-}
-
-// =====================================================================================================================
-
-func (r *Roomba) Start() error {
-	return r.WriteCode(opcStart)
-}
-
-func (r *Roomba) Reset() error {
-	return r.WriteCode(opcReset)
-}
-
-func (r *Roomba) Stop() error {
-	return r.WriteCode(opcStop)
-}
-
-func (r *Roomba) Baud(baud int) error {
-	if code, ok := codeForBaudRate[baud]; !ok {
-		return fmt.Errorf("(*Roomba).Baud(): invalid baud rate: %d", baud)
+func (o *OIBot) Write(code OpCode, buf ...interface{}) int {
+	o.WriteCode(code)
+	bin := o.Pack(buf...)
+	count := 0
+	if n, err := o.port.Write(bin); n != len(bin) || nil != err {
+		o.errorLog.Panic(fmt.Errorf("failed to write opcode (%d) data to serial port: %s", code, err))
 	} else {
-		err := r.Write(opcBaud, code)
+		count = n
+	}
+	time.Sleep(SerialTransferDelayMS)
+	return count
+}
+
+func (o *OIBot) Read(buf []byte) int {
+	count := 0
+	if n, err := o.port.Read(buf); nil != err {
+		o.errorLog.Panic(fmt.Errorf("failed to read from serial port: %+v", err))
+	} else {
+		count = n
+	}
+	return count
+}
+
+func (o *OIBot) Sensor(packet *SensorPacket) []byte {
+	defer func() {
+		if o.timeout > NeverReadTimeoutMS {
+			recover()
+		}
+	}()
+	o.Write(opcQuery, packet.id)
+	data := make([]byte, packet.size)
+	current, remaining := 0, int(packet.size)
+	for current < remaining {
+		frame := data[current:]
+		remaining -= current
+		current = o.Read(frame)
+	}
+	return data
+}
+
+func (o *OIBot) sensorListID(packet ...*SensorPacket) []byte {
+	id := make([]byte, len(packet))
+	for i, d := range packet {
+		id[i] = d.id
+	}
+	return id
+}
+
+func (o *OIBot) SensorList(packet ...*SensorPacket) [][]byte {
+	defer func() {
+		if o.timeout > NeverReadTimeoutMS {
+			recover()
+		}
+	}()
+	numPackets := byte(len(packet))
+	if numPackets > 0 {
+		queryList := []byte{numPackets}
+		queryList = append(queryList, o.sensorListID(packet...)...)
+		o.Write(opcQueryList, queryList)
+		data := make([][]byte, numPackets)
+		for i, p := range packet {
+			data[i] = make([]byte, p.size)
+			current, remaining := 0, int(p.size)
+			for current < remaining {
+				frame := data[i][current:]
+				remaining -= current
+				current = o.Read(frame)
+			}
+		}
+		return data
+	}
+	return nil
+}
+
+// =============================================================================
+
+func (o *OIBot) Start() {
+	o.Write(opcStart)
+}
+
+func (o *OIBot) Passive() { // alias for start command
+	o.Write(opcStart)
+}
+
+func (o *OIBot) Reset() {
+	o.Write(opcReset)
+}
+
+func (o *OIBot) Stop() {
+	o.Write(opcStop)
+}
+
+func (o *OIBot) Baud(baud int) {
+	if code, ok := codeForBaudRate[baud]; !ok {
+		o.errorLog.Panic(fmt.Errorf("will not change to invalid baud rate: %d", baud))
+	} else {
+		_ = o.Write(opcBaud, code)
 		time.Sleep(100 * time.Millisecond)
-		return err
 	}
 }
 
-func (r *Roomba) Control() error {
-	return r.WriteCode(opcControl)
+func (o *OIBot) Control() {
+	o.Write(opcControl)
 }
 
-func (r *Roomba) Safe() error {
-	return r.WriteCode(opcSafe)
+func (o *OIBot) Safe() {
+	o.Write(opcSafe)
 }
 
-func (r *Roomba) Full() error {
-	return r.WriteCode(opcFull)
+func (o *OIBot) Full() {
+	o.Write(opcFull)
 }
 
-func (r *Roomba) Power() error {
-	return r.WriteCode(opcPower)
+func (o *OIBot) Power() {
+	o.Write(opcPower)
 }
 
-func (r *Roomba) Clean() error {
-	return r.WriteCode(opcClean)
+func (o *OIBot) Clean() {
+	o.Write(opcClean)
 }
 
-func (r *Roomba) MaxClean() error {
-	return r.WriteCode(opcMaxClean)
+func (o *OIBot) MaxClean() {
+	o.Write(opcMaxClean)
 }
 
-func (r *Roomba) Spot() error {
-	return r.WriteCode(opcSpot)
+func (o *OIBot) Spot() {
+	o.Write(opcSpot)
 }
 
-func (r *Roomba) SeekDock() error {
-	return r.WriteCode(opcForceSeekingDock)
+func (o *OIBot) SeekDock() {
+	o.Write(opcForceSeekingDock)
 }
 
-func (r *Roomba) Drive(velocity int16, radius int16) error {
+func (o *OIBot) Drive(velocity int16, radius int16) {
 	if velocity < MinDriveVelocityMMPS || velocity > MaxDriveVelocityMMPS {
-		return fmt.Errorf("(*Roomba).Drive(): invalid velocity: %d", velocity)
+		o.errorLog.Panic(fmt.Errorf("invalid drive velocity: %d", velocity))
 	}
 	if radius < MinDriveRadiusMM || radius > MaxDriveRadiusMM {
-		return fmt.Errorf("(*Roomba).Drive(): invalid radius: %d", radius)
+		o.errorLog.Panic(fmt.Errorf("invalid drive radius: %d", radius))
 	}
-	return r.Write(opcDrive, velocity, radius)
+	_ = o.Write(opcDrive, velocity, radius)
 }
 
-func (r *Roomba) DriveStop() error {
-	return r.Drive(0, 0)
+func (o *OIBot) DriveStop() {
+	o.Drive(0, 0)
 }
 
-func (r *Roomba) DriveWheels(rightVelocity int16, leftVelocity int16) error {
+func (o *OIBot) DriveWheels(rightVelocity int16, leftVelocity int16) {
 	if rightVelocity < MinDriveVelocityMMPS || rightVelocity > MaxDriveVelocityMMPS {
-		return fmt.Errorf("(*Roomba).Drive(): invalid right wheel velocity: %d", rightVelocity)
+		o.errorLog.Panic(fmt.Errorf("invalid right wheel velocity: %d", rightVelocity))
 	}
 	if leftVelocity < MinDriveVelocityMMPS || leftVelocity > MaxDriveVelocityMMPS {
-		return fmt.Errorf("(*Roomba).Drive(): invalid left wheel velocity: %d", leftVelocity)
+		o.errorLog.Panic(fmt.Errorf("invalid left wheel velocity: %d", leftVelocity))
 	}
-	return r.Write(opcDriveWheels, rightVelocity, leftVelocity)
+	_ = o.Write(opcDriveWheels, rightVelocity, leftVelocity)
+}
+
+func (o *OIBot) Mode() OpenInterfaceMode {
+	data := o.Sensor(spcOpenInterfaceMode)
+	if len(data) > 0 {
+		return OpenInterfaceMode(data[0])
+	}
+	return OIMOff
+}
+
+// =============================================================================
+
+var (
+
+	// full general info status message
+	infoPacket = []*SensorPacket{
+		// OI mode
+		spcOpenInterfaceMode,
+		// battery/charger
+		spcChargingState, spcVoltage, spcCurrent, spcBatteryCharge,
+		spcBatteryCapacity, spcChargerAvailable,
+	}
+
+	// battery-only status message
+	batteryPacket = infoPacket[1:]
+)
+
+type BatteryStatus struct {
+	ChargingState      byte
+	VoltagemV          uint16
+	CurrentmA          int16
+	BatteryChargemAh   uint16
+	BatteryCapacitymAh uint16
+	ChargerAvailable   byte
+}
+
+func batteryStatus(data [][]byte) *BatteryStatus {
+	return &BatteryStatus{
+		ChargingState:      data[0][0],
+		VoltagemV:          uint16((uint16(data[1][0]) << 8) | uint16(data[1][1])),
+		CurrentmA:          int16((uint16(data[2][0]) << 8) | uint16(data[2][1])),
+		BatteryChargemAh:   uint16((uint16(data[3][0]) << 8) | uint16(data[3][1])),
+		BatteryCapacitymAh: uint16((uint16(data[4][0]) << 8) | uint16(data[4][1])),
+		ChargerAvailable:   data[5][0],
+	}
+}
+
+func (o *OIBot) Battery() (*BatteryStatus, bool) {
+	data := o.SensorList(batteryPacket...)
+	if nil != data && len(data) == len(batteryPacket) {
+		return batteryStatus(data), true
+	}
+	return nil, false
+}
+
+type InfoStatus struct {
+	Mode    OpenInterfaceMode
+	Battery *BatteryStatus
+}
+
+func (o *OIBot) Info() (*InfoStatus, bool) {
+	data := o.SensorList(infoPacket...)
+	if nil != data && len(data) == len(infoPacket) {
+		return &InfoStatus{
+			Mode:    OpenInterfaceMode(data[0][0]),
+			Battery: batteryStatus(data[1:]),
+		}, true
+	}
+	return nil, false
 }
