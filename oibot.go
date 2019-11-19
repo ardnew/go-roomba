@@ -19,7 +19,7 @@ type OIBot struct {
 	timeout  time.Duration
 }
 
-func MakeOIBot(infoLog *log.Logger, errorLog *log.Logger, path string, baud int, rtime time.Duration) *OIBot {
+func MakeOIBot(infoLog *log.Logger, errorLog *log.Logger, init bool, path string, baud int, rtime time.Duration) *OIBot {
 	var o *OIBot
 	if _, ok := codeForBaudRate[baud]; !ok {
 		errorLog.Panic(fmt.Errorf("invalid baud rate: %d", baud))
@@ -32,11 +32,24 @@ func MakeOIBot(infoLog *log.Logger, errorLog *log.Logger, path string, baud int,
 		errorLog.Panic(fmt.Errorf("failed to open serial port: %s (%d): %s", path, baud, err))
 	} else {
 		o = &OIBot{port: port, infoLog: infoLog, errorLog: errorLog, path: path, baud: baud, timeout: rtime}
-		// initialize the OI to a state that will allow battery charging via dock
-		o.Safe()
-		o.Baud(baud)
+		if init {
+			o.Baud(baud)
+		}
+		o.Passive()
 	}
 	return o
+}
+
+func (o *OIBot) Flush() {
+	if err := o.port.Flush(); nil != err {
+		o.errorLog.Panic(fmt.Errorf("failed to flush serial port: %s", err))
+	}
+}
+
+func (o *OIBot) Close() {
+	if err := o.port.Close(); nil != err {
+		o.errorLog.Panic(fmt.Errorf("failed to close serial port: %s", err))
+	}
 }
 
 func (o *OIBot) Pack(data ...interface{}) []byte {
