@@ -293,6 +293,10 @@ const (
 type OpenInterfaceMode byte
 
 const (
+	BootupTimeMS time.Duration = 5000 * time.Millisecond
+)
+
+const (
 	OIMOff     OpenInterfaceMode = 0
 	OIMPassive OpenInterfaceMode = 1
 	OIMSafe    OpenInterfaceMode = 2
@@ -308,4 +312,63 @@ func OIModeStr(mode OpenInterfaceMode) (string, bool) {
 		return oiModeStr[mode], true
 	}
 	return "", false
+}
+
+// =====================================================================================================================
+type angleBounds struct {
+	min, max int16
+}
+
+type angleRune struct {
+	dom []angleBounds
+	gfx []rune
+}
+
+const (
+	angleRuneWeightMax = byte(4)
+	angleRuneUnknown   = '⮔'
+)
+
+func AngleRune(angle int16, weight byte) rune {
+	// all angle vars are in units degrees. weight corresponds to the column of
+	// runes in the table below, valid range is 0..4
+	var (
+		arrow = []angleRune{{
+			dom: []angleBounds{{min: 202, max: 247}, {min: -157, max: -112}},
+			gfx: []rune{'🡧', '🡯', '🡷', '🡿', '🢇'},
+		}, {
+			dom: []angleBounds{{min: 112, max: 157}, {min: -247, max: -202}},
+			gfx: []rune{'🡦', '🡮', '🡶', '🡾', '🢆'},
+		}, {
+			dom: []angleBounds{{min: 22, max: 67}, {min: -337, max: -292}},
+			gfx: []rune{'🡥', '🡭', '🡵', '🡽', '🢅'},
+		}, {
+			dom: []angleBounds{{min: 292, max: 337}, {min: -67, max: -22}},
+			gfx: []rune{'🡤', '🡬', '🡴', '🡼', '🢄'},
+		}, {
+			dom: []angleBounds{{min: 157, max: 202}, {min: -202, max: -157}},
+			gfx: []rune{'🡣', '🡫', '🡳', '🡻', '🢃'},
+		}, {
+			dom: []angleBounds{{min: -22, max: 22}, {min: 337, max: 382}, {min: -382, max: -337}},
+			gfx: []rune{'🡡', '🡩', '🡱', '🡹', '🢁'},
+		}, {
+			dom: []angleBounds{{min: 67, max: 112}, {min: -292, max: -247}},
+			gfx: []rune{'🡢', '🡪', '🡲', '🡺', '🢂'},
+		}, {
+			dom: []angleBounds{{min: 247, max: 292}, {min: -112, max: -67}},
+			gfx: []rune{'🡠', '🡨', '🡰', '🡸', '🢀'},
+		}}
+	)
+
+	if weight >= 0 && weight <= angleRuneWeightMax {
+		norm := angle % 360
+		for _, a := range arrow {
+			for _, d := range a.dom {
+				if norm >= d.min && norm < d.max {
+					return a.gfx[weight]
+				}
+			}
+		}
+	}
+	return angleRuneUnknown
 }
