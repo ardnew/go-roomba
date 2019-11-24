@@ -77,6 +77,7 @@ const (
 	MinDriveVelocityMMPS   int16 = -500
 	MaxDriveRadiusMM       int16 = 2000
 	MinDriveRadiusMM       int16 = -2000
+	StraightDriveRadiusMM  int16 = 0x7FFF
 	DriveWheelSeparationMM int16 = 298
 )
 
@@ -315,6 +316,8 @@ func OIModeStr(mode OpenInterfaceMode) (string, bool) {
 }
 
 // =====================================================================================================================
+type Direction uint
+
 type angleBounds struct {
 	min, max int16
 }
@@ -322,53 +325,74 @@ type angleBounds struct {
 type angleRune struct {
 	dom []angleBounds
 	gfx []rune
+	dir Direction
 }
 
 const (
-	angleRuneWeightMax = byte(4)
-	angleRuneUnknown   = '⮔'
+	AngleRuneWeightMax = byte(4)
+	AngleRuneUnknown   = '⮔'
 )
 
-func AngleRune(angle int16, weight byte) rune {
+const (
+	DirStop Direction = iota
+	DirLeft
+	DirLeftFwd
+	DirFwd
+	DirRightFwd
+	DirRight
+	DirRightAft
+	DirAft
+	DirLeftAft
+)
+
+func AngleRune(angle int16, weight byte) (rune, Direction) {
 	// all angle vars are in units degrees. weight corresponds to the column of
 	// runes in the table below, valid range is 0..4
 	var (
 		arrow = []angleRune{{
 			dom: []angleBounds{{min: 202, max: 247}, {min: -157, max: -112}},
 			gfx: []rune{'🡧', '🡯', '🡷', '🡿', '🢇'},
+			dir: DirLeftAft,
 		}, {
 			dom: []angleBounds{{min: 112, max: 157}, {min: -247, max: -202}},
 			gfx: []rune{'🡦', '🡮', '🡶', '🡾', '🢆'},
+			dir: DirRightAft,
 		}, {
 			dom: []angleBounds{{min: 22, max: 67}, {min: -337, max: -292}},
 			gfx: []rune{'🡥', '🡭', '🡵', '🡽', '🢅'},
+			dir: DirRightFwd,
 		}, {
 			dom: []angleBounds{{min: 292, max: 337}, {min: -67, max: -22}},
 			gfx: []rune{'🡤', '🡬', '🡴', '🡼', '🢄'},
+			dir: DirLeftFwd,
 		}, {
 			dom: []angleBounds{{min: 157, max: 202}, {min: -202, max: -157}},
 			gfx: []rune{'🡣', '🡫', '🡳', '🡻', '🢃'},
+			dir: DirAft,
 		}, {
 			dom: []angleBounds{{min: -22, max: 22}, {min: 337, max: 382}, {min: -382, max: -337}},
 			gfx: []rune{'🡡', '🡩', '🡱', '🡹', '🢁'},
+			dir: DirFwd,
 		}, {
 			dom: []angleBounds{{min: 67, max: 112}, {min: -292, max: -247}},
 			gfx: []rune{'🡢', '🡪', '🡲', '🡺', '🢂'},
+			dir: DirRight,
 		}, {
 			dom: []angleBounds{{min: 247, max: 292}, {min: -112, max: -67}},
 			gfx: []rune{'🡠', '🡨', '🡰', '🡸', '🢀'},
+			dir: DirLeft,
 		}}
 	)
 
-	if weight >= 0 && weight <= angleRuneWeightMax {
+	if weight >= 0 && weight <= AngleRuneWeightMax {
 		norm := angle % 360
 		for _, a := range arrow {
 			for _, d := range a.dom {
 				if norm >= d.min && norm < d.max {
-					return a.gfx[weight]
+					return a.gfx[weight], a.dir
 				}
 			}
 		}
 	}
-	return angleRuneUnknown
+	return AngleRuneUnknown, DirStop
 }

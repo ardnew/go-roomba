@@ -72,6 +72,7 @@ func (o *OIBot) WriteCode(code OpCode) {
 func (o *OIBot) Write(code OpCode, buf ...interface{}) int {
 	o.WriteCode(code)
 	bin := o.Pack(buf...)
+	o.infoLog.Printf("%+v", bin)
 	count := 0
 	if n, err := o.port.Write(bin); n != len(bin) || nil != err {
 		o.errorLog.Panic(fmt.Errorf("failed to write opcode (%d) data to serial port: %s", code, err))
@@ -206,8 +207,10 @@ func (o *OIBot) Drive(velocity int16, radius int16) {
 	if velocity < MinDriveVelocityMMPS || velocity > MaxDriveVelocityMMPS {
 		o.errorLog.Panic(fmt.Errorf("invalid drive velocity: %d", velocity))
 	}
-	if radius < MinDriveRadiusMM || radius > MaxDriveRadiusMM {
-		o.errorLog.Panic(fmt.Errorf("invalid drive radius: %d", radius))
+	if StraightDriveRadiusMM != radius {
+		if radius < MinDriveRadiusMM || radius > MaxDriveRadiusMM {
+			o.errorLog.Panic(fmt.Errorf("invalid drive radius: %d", radius))
+		}
 	}
 	_ = o.Write(opcDrive, velocity, radius)
 }
